@@ -38,13 +38,16 @@ const dom = {
   kpiUpdated: document.getElementById("kpi-updated"),
   search: document.getElementById("search"),
   stateFilter: document.getElementById("state-filter"),
-  sourceFilter: document.getElementById("source-filter"),
+  srcToggles: Array.from(document.querySelectorAll(".src-toggle")),
   mesoFilter: document.getElementById("meso-filter"),
   minYear: document.getElementById("min-year"),
   records: document.getElementById("records"),
   toggleDistricts: document.getElementById("toggle-districts"),
   toggleHeatmap: document.getElementById("toggle-heatmap"),
   heatSourceFilter: document.getElementById("heat-source-filter"),
+  loadbox: document.getElementById("loadbox"),
+  loadtext: document.getElementById("loadtext"),
+  loadfill: document.getElementById("loadfill"),
   submitReport: document.getElementById("submit-report"),
   rHospital: document.getElementById("r-hospital"),
   rCity: document.getElementById("r-city"),
@@ -69,6 +72,18 @@ function sourceColor(src) {
   return colorBySource[src] || "#4e6875";
 }
 
+function setLoading(visible, text = "Loading...", pct = null) {
+  if (!dom.loadbox) return;
+  dom.loadbox.classList.toggle("visible", !!visible);
+  dom.loadtext.textContent = text;
+  if (typeof pct === "number") {
+    const x = Math.max(0, Math.min(100, pct));
+    dom.loadfill.style.width = `${x}%`;
+  } else if (!visible) {
+    dom.loadfill.style.width = "0%";
+  }
+}
+
 function canonicalStateName(raw) {
   const v = String(raw || "").trim();
   if (!v) return "";
@@ -76,15 +91,23 @@ function canonicalStateName(raw) {
   return STATE_ALIASES[low] || v;
 }
 
+function enabledSources() {
+  const active = new Set();
+  dom.srcToggles.forEach((cb) => {
+    if (cb.checked) active.add(cb.value);
+  });
+  return active;
+}
+
 function pointMatches(feature) {
   const p = feature.properties || {};
   const search = norm(dom.search.value);
   const stateFilter = norm(dom.stateFilter.value);
-  const sourceFilter = norm(dom.sourceFilter.value);
   const mesoFilter = norm(dom.mesoFilter.value);
   const minYear = Number(dom.minYear.value || "0");
+  const sources = enabledSources();
 
-  if (sourceFilter && norm(p.source_type) !== sourceFilter) return false;
+  if (sources.size && !sources.has(p.source_type)) return false;
   if (stateFilter && norm(p.state) !== stateFilter) return false;
   if (mesoFilter && norm(p.meso_type) !== mesoFilter) return false;
   if ((Number(p.year_end) || 0) < minYear) return false;
@@ -196,10 +219,14 @@ function renderHeatmap() {
     .forEach((f) => {
       const [lon, lat] = f.geometry.coordinates;
       const c = Number(f.properties.case_count) || 1;
-      const intensity = Math.min(1, Math.max(0.22, Math.log1p(c) / Math.log(80)));
-      const repeats = Math.min(20, Math.max(1, Math.ceil(Math.log2(c + 1))));
+      const intensity = Math.min(1, Math.max(0.35, Math.log1p(c) / Math.log(60)));
+      const repeats = Math.min(60, Math.max(3, Math.ceil(Math.sqrt(c) * 1.8)));
+      const spread = Math.min(0.18, 0.03 + Math.log1p(c) * 0.02);
       for (let i = 0; i < repeats; i += 1) {
-        points.push([lat, lon, intensity]);
+        const ang = (i / repeats) * Math.PI * 2;
+        const dLat = spread * Math.sin(ang);
+        const dLon = (spread * Math.cos(ang)) / Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+        points.push([lat + dLat, lon + dLon, intensity]);
       }
     });
 
@@ -241,6 +268,7 @@ function updateStateChoropleth() {
 }
 
 async function initMap() {
+  setLoading(true, "Initializing map...", 8);
   state.map = L.map("map", {
     zoomControl: true,
     minZoom: 4,
@@ -254,20 +282,23 @@ async function initMap() {
   if (typeof L.heatLayer === "function") {
     state.heatLayer = L.heatLayer([], {
       pane: "heatPane",
-      radius: 34,
-      blur: 26,
+      radius: 46,
+      blur: 32,
       maxZoom: 9,
-      minOpacity: 0.55,
+      minOpacity: 0.72,
       gradient: {
-        0.2: "#1d4ed8",
-        0.45: "#16a34a",
-        0.7: "#f59e0b",
-        0.95: "#dc2626",
+        0.15: "#1d4ed8",
+        0.35: "#16a34a",
+        0.58: "#f59e0b",
+        0.82: "#ef4444",
+        1.0: "#7f1d1d",
       },
     });
   }
 
+  setLoading(true, "Loading mesothelioma records...", 28);
   const [casesRes, statesRes] = await Promise.all([fetch(CONFIG.casesUrl), fetch(CONFIG.statesUrl)]);
+  setLoading(true, "Parsing boundary layers...", 62);
   const casesJson = await casesRes.json();
   const statesGeo = await statesRes.json();
 
@@ -289,7 +320,9 @@ async function initMap() {
 
   fillStateFilter();
   dom.toggleHeatmap.textContent = state.showHeatmap ? "Hide Heatmap" : "Show Heatmap";
+  setLoading(true, "Rendering layers...", 90);
   refresh();
+  setLoading(false, "Ready", 100);
 }
 
 async function toggleDistrictLayer() {
@@ -302,7 +335,9 @@ async function toggleDistrictLayer() {
   }
 
   if (!state.districtsLayer) {
+    setLoading(true, "Loading district boundaries...", 35);
     const res = await fetch(CONFIG.districtsUrl);
+    setLoading(true, "Parsing district boundaries...", 68);
     const geo = await res.json();
     state.districtsLayer = L.geoJSON(geo, {
       style: {
@@ -313,15 +348,20 @@ async function toggleDistrictLayer() {
       },
       interactive: false,
     });
+    setLoading(true, "Rendering district boundaries...", 92);
   }
   state.districtsLayer.addTo(state.map);
+  setLoading(false, "Ready", 100);
 }
 
 function initEvents() {
-  [dom.search, dom.stateFilter, dom.sourceFilter, dom.mesoFilter, dom.minYear, dom.heatSourceFilter].forEach((el) => {
+  [dom.search, dom.stateFilter, dom.mesoFilter, dom.minYear, dom.heatSourceFilter].forEach((el) => {
     if (!el) return;
     el.addEventListener("input", refresh);
     el.addEventListener("change", refresh);
+  });
+  dom.srcToggles.forEach((cb) => {
+    cb.addEventListener("change", refresh);
   });
 
   dom.toggleDistricts.addEventListener("click", () => {

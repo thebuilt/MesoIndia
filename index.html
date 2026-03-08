@@ -33,15 +33,13 @@
       <label>State
         <select id="state-filter"><option value="">All</option></select>
       </label>
-      <label>Source
-        <select id="source-filter">
-          <option value="">All</option>
-          <option value="Hospital Registry">Hospital Registry</option>
-          <option value="PBCR">PBCR</option>
-          <option value="NCBI Literature">NCBI Literature</option>
-          <option value="Community Verified">Community Verified</option>
-        </select>
-      </label>
+      <fieldset class="source-toggles">
+        <legend>Sources</legend>
+        <label><input type="checkbox" class="src-toggle" value="Hospital Registry" checked /> Hospital Registry</label>
+        <label><input type="checkbox" class="src-toggle" value="PBCR" checked /> PBCR</label>
+        <label><input type="checkbox" class="src-toggle" value="NCBI Literature" checked /> NCBI Literature</label>
+        <label><input type="checkbox" class="src-toggle" value="Community Verified" checked /> Community Verified</label>
+      </fieldset>
       <label>Meso Type
         <select id="meso-filter">
           <option value="">All</option>
@@ -73,6 +71,10 @@
         </select>
       </label>
     </section>
+    <section class="loadbox" id="loadbox" aria-live="polite">
+      <div class="loadtext" id="loadtext">Loading data...</div>
+      <div class="loadbar"><div class="loadfill" id="loadfill"></div></div>
+    </section>
 
     <section class="layout">
       <section class="panel">
@@ -83,7 +85,7 @@
           <span><i class="swatch source-pbcr"></i>PBCR</span>
           <span><i class="swatch source-lit"></i>NCBI Literature</span>
           <span><i class="swatch source-comm"></i>Community Verified</span>
-          <span class="small">Circle radius approximates catchment area where available.</span>
+          <span class="small">Heat intensity and point size are weighted by case count.</span>
         </div>
       </section>
 
