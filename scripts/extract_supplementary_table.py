@@ -11,60 +11,89 @@ from pathlib import Path
 from pypdf import PdfReader
 
 STATE_HINTS = [
-    "Andhra Pradesh",
-    "Arunachal Pradesh",
-    "Assam",
-    "Bihar",
-    "Chhattisgarh",
-    "Goa",
-    "Gujarat",
-    "Haryana",
-    "Himachal Pradesh",
-    "Jharkhand",
-    "Karnataka",
-    "Kerala",
-    "Madhya Pradesh",
-    "Maharashtra",
-    "Manipur",
-    "Meghalaya",
-    "Mizoram",
-    "Nagaland",
-    "Odisha",
-    "Punjab",
-    "Rajasthan",
-    "Sikkim",
-    "Tamil Nadu",
-    "Telangana",
-    "Tripura",
-    "Uttar Pradesh",
-    "Uttarakhand",
-    "West Bengal",
-    "Delhi",
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat",
+    "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh",
+    "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
+    "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
+    "Uttarakhand", "West Bengal", "Chandigarh", "Delhi", "Delhi-UT", "J&K-UT", "Puducherry",
     "Jammu and Kashmir",
 ]
-
-ROW_RE = re.compile(r"\b(\d{1,3})\s+([A-Za-z][A-Za-z0-9 .,&()'/-]{6,}?)\s+(" + "|".join(re.escape(s) for s in STATE_HINTS) + r")\s+([0-9\s]{1,80})")
+STATE_CANON = {
+    "Delhi-UT": "Delhi",
+    "J&K-UT": "Jammu and Kashmir",
+}
 
 
 def normalize_space(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
 
+def canonical_state(state: str) -> str:
+    state = normalize_space(state)
+    return STATE_CANON.get(state, state)
+
+
+def fold_rows(table_text: str) -> list[str]:
+    lines = [normalize_space(x) for x in table_text.splitlines() if normalize_space(x)]
+    out: list[str] = []
+    cur = ""
+    for line in lines:
+        if re.match(r"^\d{1,3}\s+", line):
+            if cur:
+                out.append(cur)
+            cur = line
+        else:
+            cur = f"{cur} {line}".strip()
+    if cur:
+        out.append(cur)
+    return out
+
+
+def split_name_and_counts(row_text: str) -> tuple[str, list[int]]:
+    m = re.search(r"((?:\s+\d+)+)\s*$", row_text)
+    if not m:
+        return row_text.strip(), []
+    nums = [int(x) for x in re.findall(r"\d+", m.group(1))]
+    left = row_text[: m.start()].strip()
+    return left, nums
+
+
+def extract_state(name_blob: str) -> tuple[str, str]:
+    for s in sorted(STATE_HINTS, key=len, reverse=True):
+        if name_blob.endswith(s):
+            return name_blob[: -len(s)].strip(" ,"), canonical_state(s)
+    return name_blob, ""
+
+
 def parse_rows(text: str) -> list[dict[str, str]]:
+    start = text.find("Supplementary Table S1")
+    end = text.find("Table S1:")
+    if start >= 0:
+        text = text[start:end if end > start else None]
+
     rows: list[dict[str, str]] = []
-    for m in ROW_RE.finditer(text):
-        row_id = m.group(1)
-        hospital_blob = normalize_space(m.group(2))
-        state = normalize_space(m.group(3))
-        nums = [int(x) for x in re.findall(r"\d+", m.group(4))]
-        if not nums:
+    for row in fold_rows(text):
+        m = re.match(r"^(\d{1,3})\s+(.*)$", row)
+        if not m:
             continue
-        total = nums[-1]
+        row_id = m.group(1)
+        payload = m.group(2)
+        hospital_blob, nums = split_name_and_counts(payload)
+        if not nums:
+            # keep row with unknown total as 0 so the site is visible for manual completion
+            total = 0
+        else:
+            total = nums[-1]
+            # Guard against accidental capture of the table grand total (2213) in the last row.
+            if total > 1500 and len(nums) > 1:
+                total = nums[-2]
+
+        hospital_plus_city, state = extract_state(hospital_blob)
 
         city = ""
-        hospital = hospital_blob
-        if "," in hospital_blob:
-            left, right = hospital_blob.rsplit(",", 1)
+        hospital = hospital_plus_city
+        if "," in hospital_plus_city:
+            left, right = hospital_plus_city.rsplit(",", 1)
             hospital = normalize_space(left)
             city = normalize_space(right)
 
@@ -74,7 +103,7 @@ def parse_rows(text: str) -> list[dict[str, str]]:
                 "source_type": "Hospital Registry",
                 "source_name": "NCRP Supplementary Table S1",
                 "study_or_registry": "iutld_pha_24.0003 supplementary table",
-                "hospital": hospital,
+                "hospital": normalize_space(hospital),
                 "city": city,
                 "state": state,
                 "icd10": "C45",

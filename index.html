@@ -56,8 +56,21 @@
         <input id="min-year" type="number" min="1960" max="2100" value="2000" />
       </label>
       <label>
-        <span>Catchment Layer</span>
-        <button id="toggle-catchment" type="button">Show Catchment</button>
+        <span>District Layer</span>
+        <button id="toggle-districts" type="button">Show Districts</button>
+      </label>
+      <label>
+        <span>Heatmap</span>
+        <button id="toggle-heatmap" type="button">Show Heatmap</button>
+      </label>
+      <label>Heat Source
+        <select id="heat-source-filter">
+          <option value="all">All</option>
+          <option value="Hospital Registry">Hospital Registry</option>
+          <option value="PBCR">PBCR</option>
+          <option value="NCBI Literature">NCBI Literature</option>
+          <option value="Community Verified">Community Verified</option>
+        </select>
       </label>
     </section>
 
@@ -96,12 +109,11 @@
       </div>
     </section>
 
-    <p class="small" style="margin-top:10px;">
-      Note: mesothelioma ICD-10 code is <strong>C45</strong>. ICD-10 C46 corresponds to Kaposi sarcoma.
-    </p>
+    <p class="small" style="margin-top:10px;">Note: mesothelioma ICD-10 code is <strong>C45</strong>.</p>
   </main>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

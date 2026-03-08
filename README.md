@@ -11,13 +11,13 @@ The project is built as a static site + reproducible Python ETL scripts so you c
 ## Disease coding note
 Mesothelioma is **ICD-10 C45**.
 - `C45` = Mesothelioma
-- `C46` = Kaposi sarcoma
 
 This repository is configured for C45 and all mesothelioma types.
 
 ## Repository layout
 
 - `index.html`, `app.js`, `styles.css`: Interactive Leaflet map UI
+  - Includes toggleable catchment circles, district boundary overlay, and weighted heatmap
 - `data/registry_cases.csv`: Hospital/PBCR rows from registry sources
 - `data/literature_cases.csv`: NCBI-derived rows (auto-refreshed)
 - `data/community_verified.csv`: Approved community submissions only
@@ -25,6 +25,8 @@ This repository is configured for C45 and all mesothelioma types.
 - `scripts/update_ncbi_mesothelioma.py`: Pulls India mesothelioma records from NCBI API
 - `scripts/extract_supplementary_table.py`: Extracts hospital rows from supplementary PDF table
 - `scripts/build_dataset.py`: Merges CSVs into `meso_cases.geojson`
+- `scripts/import_soi_state_boundary.py`: Imports SOI state boundary shapefile to map GeoJSON
+- `scripts/import_soi_district_boundary.py`: Imports SOI district boundary shapefile to simplified overlay GeoJSON
 - `.github/workflows/update-data.yml`: Daily data refresh automation
 
 ## Quick start (local)

@@ -8,15 +8,20 @@ const CONFIG = {
 const state = {
   features: [],
   filtered: [],
-  showCatchment: false,
   markers: null,
-  circles: null,
   statesLayer: null,
   districtsLayer: null,
   showDistricts: false,
   heatLayer: null,
-  showHeatmap: false,
+  showHeatmap: true,
   map: null,
+};
+
+const STATE_ALIASES = {
+  "j&k-ut": "Jammu and Kashmir",
+  "delhi-ut": "Delhi",
+  "nct of delhi": "Delhi",
+  "orissa": "Odisha",
 };
 
 const colorBySource = {
@@ -37,9 +42,9 @@ const dom = {
   mesoFilter: document.getElementById("meso-filter"),
   minYear: document.getElementById("min-year"),
   records: document.getElementById("records"),
-  toggleCatchment: document.getElementById("toggle-catchment"),
   toggleDistricts: document.getElementById("toggle-districts"),
   toggleHeatmap: document.getElementById("toggle-heatmap"),
+  heatSourceFilter: document.getElementById("heat-source-filter"),
   submitReport: document.getElementById("submit-report"),
   rHospital: document.getElementById("r-hospital"),
   rCity: document.getElementById("r-city"),
@@ -62,6 +67,13 @@ function formatDate(iso) {
 
 function sourceColor(src) {
   return colorBySource[src] || "#4e6875";
+}
+
+function canonicalStateName(raw) {
+  const v = String(raw || "").trim();
+  if (!v) return "";
+  const low = v.toLowerCase();
+  return STATE_ALIASES[low] || v;
 }
 
 function pointMatches(feature) {
@@ -123,31 +135,23 @@ function popupHtml(p) {
 
 function renderMarkers() {
   if (state.markers) state.markers.clearLayers();
-  if (state.circles) state.circles.clearLayers();
 
   state.filtered.forEach((f) => {
     const [lon, lat] = f.geometry.coordinates;
     const p = f.properties;
     const color = sourceColor(p.source_type);
+    const caseCount = Number(p.case_count) || 1;
+    const radius = Math.min(22, Math.max(5, 4 + Math.log1p(caseCount) * 2.6));
 
     const marker = L.circleMarker([lat, lon], {
-      radius: 6,
+      radius,
       color,
       fillColor: color,
-      fillOpacity: 0.85,
+      fillOpacity: 0.75,
       weight: 1,
     }).bindPopup(popupHtml(p));
 
     marker.addTo(state.markers);
-
-    if (state.showCatchment && Number(p.catchment_km) > 0) {
-      L.circle([lat, lon], {
-        radius: Number(p.catchment_km) * 1000,
-        color,
-        fillOpacity: 0.06,
-        weight: 1,
-      }).addTo(state.circles);
-    }
   });
 }
 
@@ -185,12 +189,19 @@ function renderHeatmap() {
     return;
   }
 
-  const points = state.filtered.map((f) => {
-    const [lon, lat] = f.geometry.coordinates;
-    const c = Number(f.properties.case_count) || 1;
-    const intensity = Math.min(1, Math.max(0.08, c / 120));
-    return [lat, lon, intensity];
-  });
+  const heatSource = dom.heatSourceFilter?.value || "all";
+  const points = [];
+  state.filtered
+    .filter((f) => heatSource === "all" || (f.properties?.source_type === heatSource))
+    .forEach((f) => {
+      const [lon, lat] = f.geometry.coordinates;
+      const c = Number(f.properties.case_count) || 1;
+      const intensity = Math.min(1, Math.max(0.22, Math.log1p(c) / Math.log(80)));
+      const repeats = Math.min(20, Math.max(1, Math.ceil(Math.log2(c + 1))));
+      for (let i = 0; i < repeats; i += 1) {
+        points.push([lat, lon, intensity]);
+      }
+    });
 
   state.heatLayer.setLatLngs(points);
   if (!state.map.hasLayer(state.heatLayer)) state.heatLayer.addTo(state.map);
@@ -199,7 +210,8 @@ function renderHeatmap() {
 function buildStateCounts() {
   const counts = {};
   state.filtered.forEach((f) => {
-    const s = f.properties.state || "Unknown";
+    const s = canonicalStateName(f.properties.state);
+    if (!s) return;
     counts[s] = (counts[s] || 0) + (Number(f.properties.case_count) || 0);
   });
   return counts;
@@ -215,7 +227,8 @@ function updateStateChoropleth() {
   const counts = buildStateCounts();
 
   state.statesLayer.eachLayer((layer) => {
-    const sName = layer.feature?.properties?.NAME_1 || layer.feature?.properties?.st_nm || layer.feature?.properties?.name || "";
+    const rawName = layer.feature?.properties?.NAME_1 || layer.feature?.properties?.STATE || layer.feature?.properties?.st_nm || layer.feature?.properties?.name || layer.feature?.properties?.STATE_RAW || "";
+    const sName = canonicalStateName(rawName) || "Unknown region";
     const val = counts[sName] || 0;
     layer.setStyle({
       fillColor: val > 200 ? "#6a040f" : val > 50 ? "#dc2f02" : val > 10 ? "#f48c06" : val > 0 ? "#ffba08" : "#dce8ec",
@@ -235,23 +248,21 @@ async function initMap() {
     maxBoundsViscosity: 1.0,
   }).setView([22.8, 79.6], 5);
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  }).addTo(state.map);
-
   state.markers = L.layerGroup().addTo(state.map);
-  state.circles = L.layerGroup().addTo(state.map);
+  state.map.createPane("heatPane");
+  state.map.getPane("heatPane").style.zIndex = "420";
   if (typeof L.heatLayer === "function") {
     state.heatLayer = L.heatLayer([], {
-      radius: 24,
-      blur: 20,
+      pane: "heatPane",
+      radius: 34,
+      blur: 26,
       maxZoom: 9,
-      minOpacity: 0.35,
+      minOpacity: 0.55,
       gradient: {
-        0.15: "#2b83ba",
-        0.4: "#abdda4",
-        0.65: "#fdae61",
-        0.9: "#d7191c",
+        0.2: "#1d4ed8",
+        0.45: "#16a34a",
+        0.7: "#f59e0b",
+        0.95: "#dc2626",
       },
     });
   }
@@ -265,10 +276,10 @@ async function initMap() {
 
   state.statesLayer = L.geoJSON(statesGeo, {
     style: {
-      fillColor: "#dce8ec",
-      fillOpacity: 0.42,
+      fillColor: "#eef4f7",
+      fillOpacity: 0.82,
       color: "#4f6b77",
-      weight: 1.1,
+      weight: 1.2,
     },
   }).addTo(state.map);
 
@@ -277,6 +288,7 @@ async function initMap() {
   state.map.setMaxBounds(indiaBounds.pad(0.2));
 
   fillStateFilter();
+  dom.toggleHeatmap.textContent = state.showHeatmap ? "Hide Heatmap" : "Show Heatmap";
   refresh();
 }
 
@@ -306,15 +318,10 @@ async function toggleDistrictLayer() {
 }
 
 function initEvents() {
-  [dom.search, dom.stateFilter, dom.sourceFilter, dom.mesoFilter, dom.minYear].forEach((el) => {
+  [dom.search, dom.stateFilter, dom.sourceFilter, dom.mesoFilter, dom.minYear, dom.heatSourceFilter].forEach((el) => {
+    if (!el) return;
     el.addEventListener("input", refresh);
     el.addEventListener("change", refresh);
-  });
-
-  dom.toggleCatchment.addEventListener("click", () => {
-    state.showCatchment = !state.showCatchment;
-    dom.toggleCatchment.textContent = state.showCatchment ? "Hide Catchment" : "Show Catchment";
-    refresh();
   });
 
   dom.toggleDistricts.addEventListener("click", () => {

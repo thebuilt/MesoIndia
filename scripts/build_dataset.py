@@ -43,6 +43,14 @@ STATE_CENTROIDS = {
     "Uttarakhand": (30.0668, 79.0193),
     "West Bengal": (22.9868, 87.855),
 }
+VALID_STATES = set(STATE_CENTROIDS.keys()) | {"Puducherry", "Chandigarh", "Jammu and Kashmir"}
+STATE_FIX = {
+    "delhi-ut": "Delhi",
+    "nct delhi": "Delhi",
+    "j&k-ut": "Jammu and Kashmir",
+    "orissa": "Odisha",
+    "uttaranchal": "Uttarakhand",
+}
 
 
 def ffloat(val: str) -> float | None:
@@ -64,6 +72,20 @@ def load_csv(path: Path) -> list[dict[str, str]]:
         return []
     with path.open("r", encoding="utf-8") as f:
         return list(csv.DictReader(f))
+
+
+def sanitize_state(raw: str) -> str:
+    t = (raw or "").strip()
+    t = t.replace("IND.", "").replace("India", "").strip(" ,.;")
+    t = t.split(" Electronic address")[0].strip()
+    if "@" in t:
+        t = ""
+    low = t.lower()
+    if low in STATE_FIX:
+        t = STATE_FIX[low]
+    if t in VALID_STATES:
+        return t
+    return ""
 
 
 def geocode_if_needed(row: dict[str, str], cache: dict[str, list[float]], pause_s: float) -> tuple[float | None, float | None]:
@@ -102,13 +124,17 @@ def geocode_if_needed(row: dict[str, str], cache: dict[str, list[float]], pause_
 def build_features(rows: list[dict[str, str]], cache: dict[str, list[float]], geocode: bool, pause_s: float) -> list[dict]:
     feats: list[dict] = []
     for row in rows:
+        row = dict(row)
+        row["state"] = sanitize_state(row.get("state", ""))
+        if not (row.get("state", "").strip() or row.get("city", "").strip()):
+            continue
         lat = ffloat(row.get("latitude", ""))
         lon = ffloat(row.get("longitude", ""))
         if geocode and (lat is None or lon is None):
             lat, lon = geocode_if_needed(row, cache, pause_s)
         if lat is None or lon is None:
             state_name = (row.get("state") or "").strip()
-            centroid = STATE_CENTROIDS.get(state_name) or (22.9734, 78.6569)
+            centroid = STATE_CENTROIDS.get(state_name)
             if centroid:
                 lat, lon = centroid
             else:

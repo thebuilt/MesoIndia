@@ -39,17 +39,30 @@ INDIA_TERMS = {
     "haryana", "assam", "gujarat", "maharashtra", "kerala", "tamil nadu", "karnataka",
     "uttar pradesh", "west bengal", "rajasthan", "odisha", "andhra pradesh", "telangana",
 }
-STATE_HINTS = {
-    "andhra pradesh", "arunachal pradesh", "assam", "bihar", "chhattisgarh", "goa", "gujarat",
-    "haryana", "himachal pradesh", "jharkhand", "karnataka", "kerala", "madhya pradesh",
-    "maharashtra", "manipur", "meghalaya", "mizoram", "nagaland", "odisha", "punjab",
-    "rajasthan", "sikkim", "tamil nadu", "telangana", "tripura", "uttar pradesh",
-    "uttarakhand", "west bengal", "delhi", "jammu", "kashmir", "ladakh", "puducherry"
+INDIA_STATES = [
+    "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Delhi",
+    "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Jammu and Kashmir",
+    "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
+    "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
+    "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Puducherry",
+]
+STATE_ALIASES = {
+    "j&k-ut": "Jammu and Kashmir",
+    "jammu kashmir": "Jammu and Kashmir",
+    "delhi-ut": "Delhi",
+    "nct delhi": "Delhi",
+    "orissa": "Odisha",
 }
-NON_INDIA_COUNTRIES = {
-    "usa", "u.s.a", "united states", "uk", "united kingdom", "saudi arabia", "taiwan",
-    "china", "japan", "australia", "italy", "france", "germany", "canada", "singapore",
-    "korea", "spain", "brazil", "iran", "qatar", "sweden", "norway", "russia"
+CITY_TO_STATE = {
+    "mumbai": "Maharashtra", "chennai": "Tamil Nadu", "new delhi": "Delhi", "delhi": "Delhi",
+    "kolkata": "West Bengal", "bengaluru": "Karnataka", "bangalore": "Karnataka",
+    "hyderabad": "Telangana", "ahmedabad": "Gujarat", "jaipur": "Rajasthan",
+    "lucknow": "Uttar Pradesh", "coimbatore": "Tamil Nadu", "visakhapatnam": "Andhra Pradesh",
+    "guwahati": "Assam", "raipur": "Chhattisgarh", "varanasi": "Uttar Pradesh",
+}
+EXCLUDE_GEO_TERMS = {
+    "hong kong", "china", "united states", " usa", "u.s.a", "united kingdom", "uk ",
+    "saudi arabia", "taiwan", "italy", "germany", "singapore", "australia", "japan",
 }
 
 
@@ -82,35 +95,101 @@ def extract_hospital(*texts: str) -> str:
     return ""
 
 
-def extract_city_state(affiliation: str) -> tuple[str, str]:
-    parts = [p.strip() for p in affiliation.split(",") if p.strip()]
-    if not parts:
-        return "", ""
-    if len(parts) == 1:
-        return "", ""
-    city = parts[-2] if len(parts) >= 2 else ""
-    state = parts[-1].replace("India", "").strip()
-    if state.lower() in {"india", ""}:
-        state = ""
+def affiliation_looks_indian(affiliation: str) -> bool:
+    aff = clean_affiliation(affiliation).lower()
+    if "india" in aff:
+        return True
+    for st in INDIA_STATES:
+        if st.lower() in aff:
+            return True
+    return False
+
+
+def clean_affiliation(text: str) -> str:
+    text = normalize_space(text)
+    text = re.sub(r"\b\S+@\S+\b", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" ,.;")
+    return text
+
+
+def extract_india_location(title: str, abstract: str, affiliation: str) -> tuple[str, str]:
+    blob = f"{normalize_space(title)} {normalize_space(abstract)}".lower()
+    state = ""
+    city = ""
+
+    matches = []
+    for st in INDIA_STATES:
+        s = st.lower()
+        idx = blob.find(s)
+        if idx >= 0:
+            matches.append((idx, st))
+    for alias, canonical in STATE_ALIASES.items():
+        idx = blob.find(alias)
+        if idx >= 0:
+            matches.append((idx, canonical))
+    if matches:
+        matches.sort(key=lambda x: x[0])
+        state = matches[0][1]
+
+    city_hits = []
+    for c, s in CITY_TO_STATE.items():
+        idx = blob.find(c)
+        if idx >= 0:
+            city_hits.append((idx, c.title(), s))
+    if city_hits:
+        city_hits.sort(key=lambda x: x[0])
+        city = city_hits[0][1]
+        if not state:
+            state = city_hits[0][2]
+
+    # affiliation is only fallback and still sanitized/India-gated
+    aff = clean_affiliation(affiliation).lower()
+    if not state and aff:
+        for st in INDIA_STATES:
+            if st.lower() in aff:
+                state = st
+                break
+        if not city:
+            for c, s in CITY_TO_STATE.items():
+                if c in aff:
+                    city = c.title()
+                    if not state:
+                        state = s
+                    break
     return city, state
+
+
+def estimate_case_count(title: str, abstract: str) -> str:
+    text = f"{title} {abstract}".lower()
+    for rgx in [r"\b(\d{1,4})\s+(?:cases|patients)\b", r"\bcase series of\s+(\d{1,4})\b", r"\bn\s*=\s*(\d{1,4})\b"]:
+        m = re.search(rgx, text)
+        if m:
+            return m.group(1)
+    if "case report" in text:
+        return "1"
+    return "1"
 
 
 def looks_india_record(title: str, abstract: str) -> bool:
     blob = normalize_space(f"{title} {abstract}").lower()
     if not blob:
         return False
-    if any(t in blob for t in INDIA_TERMS):
-        return True
-    return False
+    has_india = any(t in blob for t in INDIA_TERMS)
+    has_excluded_geo = any(t in blob for t in EXCLUDE_GEO_TERMS)
+    if has_excluded_geo and not has_india:
+        return False
+    return has_india
 
 
-def esearch(term: str, email: str, api_key: str, retmax: int) -> list[str]:
+def esearch(term: str, email: str, api_key: str, retmax: int, start_year: int) -> list[str]:
     params = {
         "db": "pubmed",
         "retmode": "json",
         "retmax": str(retmax),
         "term": term,
         "sort": "pub date",
+        "datetype": "pdat",
+        "mindate": str(start_year),
         "email": email,
     }
     if api_key:
@@ -120,7 +199,7 @@ def esearch(term: str, email: str, api_key: str, retmax: int) -> list[str]:
     return payload.get("esearchresult", {}).get("idlist", [])
 
 
-def efetch_details(pmids: list[str], email: str, api_key: str, pause_s: float) -> list[dict[str, str]]:
+def efetch_details(pmids: list[str], email: str, api_key: str, pause_s: float, start_year: int) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for batch in chunks(pmids, 80):
         params = {
@@ -149,6 +228,8 @@ def efetch_details(pmids: list[str], email: str, api_key: str, pause_s: float) -
             affiliation = affs[0] if affs else ""
             if not looks_india_record(title, abstract):
                 continue
+            if year and year.isdigit() and int(year) < start_year:
+                continue
 
             article_ids = [safe_text(x) for x in article.findall(".//ArticleId")]
             pmcid = ""
@@ -162,7 +243,12 @@ def efetch_details(pmids: list[str], email: str, api_key: str, pause_s: float) -
                     doi = val
 
             hospital = extract_hospital(title, abstract)
-            city, state = extract_city_state(affiliation)
+            if not hospital and affiliation_looks_indian(affiliation):
+                hospital = extract_hospital(affiliation)
+            city, state = extract_india_location(title, abstract, affiliation)
+            if not state and not city and "india" not in f"{title} {abstract}".lower():
+                continue
+            case_count = estimate_case_count(title, abstract)
 
             out.append(
                 {
@@ -177,7 +263,7 @@ def efetch_details(pmids: list[str], email: str, api_key: str, pause_s: float) -
                     "state": state,
                     "icd10": "C45",
                     "meso_type": "All",
-                    "case_count": "1",
+                    "case_count": case_count,
                     "year_start": year,
                     "year_end": year,
                     "latitude": "",
@@ -238,6 +324,7 @@ def main() -> None:
     parser.add_argument("--email", default="mesoindia@example.org")
     parser.add_argument("--api-key", default="")
     parser.add_argument("--retmax", type=int, default=2500)
+    parser.add_argument("--start-year", type=int, default=1990)
     parser.add_argument("--pause", type=float, default=0.35)
     parser.add_argument(
         "--output",
@@ -245,8 +332,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    pmids = esearch(args.query, args.email, args.api_key, args.retmax)
-    rows = efetch_details(pmids, args.email, args.api_key, args.pause)
+    pmids = esearch(args.query, args.email, args.api_key, args.retmax, args.start_year)
+    rows = efetch_details(pmids, args.email, args.api_key, args.pause, args.start_year)
     write_csv(rows, Path(args.output))
     print(f"Fetched {len(rows)} records. Wrote {args.output} at {dt.datetime.utcnow().isoformat()}Z")
 
