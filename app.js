@@ -1,7 +1,7 @@
 const CONFIG = {
   casesUrl: "./data/meso_cases.geojson",
   statesUrl: "./data/india-states-simplified.geojson",
-  issueRepoUrl: "https://github.com/your-username/MesoIndia",
+  issueRepoUrl: "https://github.com/thebuilt/MesoIndia",
 };
 
 const state = {
