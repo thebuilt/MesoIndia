@@ -1,6 +1,7 @@
 const CONFIG = {
   casesUrl: "./data/meso_cases.geojson",
   statesUrl: "./data/india-states-simplified.geojson",
+  districtsUrl: "./data/india-districts-simplified.geojson",
   issueRepoUrl: "https://github.com/thebuilt/MesoIndia",
 };
 
@@ -11,6 +12,10 @@ const state = {
   markers: null,
   circles: null,
   statesLayer: null,
+  districtsLayer: null,
+  showDistricts: false,
+  heatLayer: null,
+  showHeatmap: false,
   map: null,
 };
 
@@ -33,6 +38,8 @@ const dom = {
   minYear: document.getElementById("min-year"),
   records: document.getElementById("records"),
   toggleCatchment: document.getElementById("toggle-catchment"),
+  toggleDistricts: document.getElementById("toggle-districts"),
+  toggleHeatmap: document.getElementById("toggle-heatmap"),
   submitReport: document.getElementById("submit-report"),
   rHospital: document.getElementById("r-hospital"),
   rCity: document.getElementById("r-city"),
@@ -88,6 +95,7 @@ function pointMatches(feature) {
 function refresh() {
   state.filtered = state.features.filter(pointMatches);
   renderMarkers();
+  renderHeatmap();
   renderList();
   renderKpis();
   updateStateChoropleth();
@@ -170,6 +178,24 @@ function renderList() {
   dom.records.appendChild(frag);
 }
 
+function renderHeatmap() {
+  if (!state.heatLayer) return;
+  if (!state.showHeatmap) {
+    state.map.removeLayer(state.heatLayer);
+    return;
+  }
+
+  const points = state.filtered.map((f) => {
+    const [lon, lat] = f.geometry.coordinates;
+    const c = Number(f.properties.case_count) || 1;
+    const intensity = Math.min(1, Math.max(0.08, c / 120));
+    return [lat, lon, intensity];
+  });
+
+  state.heatLayer.setLatLngs(points);
+  if (!state.map.hasLayer(state.heatLayer)) state.heatLayer.addTo(state.map);
+}
+
 function buildStateCounts() {
   const counts = {};
   state.filtered.forEach((f) => {
@@ -189,20 +215,25 @@ function updateStateChoropleth() {
   const counts = buildStateCounts();
 
   state.statesLayer.eachLayer((layer) => {
-    const sName = layer.feature?.properties?.st_nm || layer.feature?.properties?.name || "";
+    const sName = layer.feature?.properties?.NAME_1 || layer.feature?.properties?.st_nm || layer.feature?.properties?.name || "";
     const val = counts[sName] || 0;
     layer.setStyle({
       fillColor: val > 200 ? "#6a040f" : val > 50 ? "#dc2f02" : val > 10 ? "#f48c06" : val > 0 ? "#ffba08" : "#dce8ec",
-      fillOpacity: 0.35,
-      color: "#6e8d9a",
-      weight: 0.8,
+      fillOpacity: 0.42,
+      color: "#4f6b77",
+      weight: 1.1,
     });
     layer.bindTooltip(`${sName}: ${val} visible cases`);
   });
 }
 
 async function initMap() {
-  state.map = L.map("map", { zoomControl: true }).setView([22.8, 79.6], 5);
+  state.map = L.map("map", {
+    zoomControl: true,
+    minZoom: 4,
+    maxZoom: 10,
+    maxBoundsViscosity: 1.0,
+  }).setView([22.8, 79.6], 5);
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -210,6 +241,20 @@ async function initMap() {
 
   state.markers = L.layerGroup().addTo(state.map);
   state.circles = L.layerGroup().addTo(state.map);
+  if (typeof L.heatLayer === "function") {
+    state.heatLayer = L.heatLayer([], {
+      radius: 24,
+      blur: 20,
+      maxZoom: 9,
+      minOpacity: 0.35,
+      gradient: {
+        0.15: "#2b83ba",
+        0.4: "#abdda4",
+        0.65: "#fdae61",
+        0.9: "#d7191c",
+      },
+    });
+  }
 
   const [casesRes, statesRes] = await Promise.all([fetch(CONFIG.casesUrl), fetch(CONFIG.statesUrl)]);
   const casesJson = await casesRes.json();
@@ -221,14 +266,43 @@ async function initMap() {
   state.statesLayer = L.geoJSON(statesGeo, {
     style: {
       fillColor: "#dce8ec",
-      fillOpacity: 0.35,
-      color: "#6e8d9a",
-      weight: 0.8,
+      fillOpacity: 0.42,
+      color: "#4f6b77",
+      weight: 1.1,
     },
   }).addTo(state.map);
 
+  const indiaBounds = state.statesLayer.getBounds();
+  state.map.fitBounds(indiaBounds, { padding: [12, 12] });
+  state.map.setMaxBounds(indiaBounds.pad(0.2));
+
   fillStateFilter();
   refresh();
+}
+
+async function toggleDistrictLayer() {
+  state.showDistricts = !state.showDistricts;
+  dom.toggleDistricts.textContent = state.showDistricts ? "Hide Districts" : "Show Districts";
+
+  if (!state.showDistricts) {
+    if (state.districtsLayer) state.map.removeLayer(state.districtsLayer);
+    return;
+  }
+
+  if (!state.districtsLayer) {
+    const res = await fetch(CONFIG.districtsUrl);
+    const geo = await res.json();
+    state.districtsLayer = L.geoJSON(geo, {
+      style: {
+        color: "#7f8f99",
+        weight: 0.45,
+        opacity: 0.8,
+        fillOpacity: 0,
+      },
+      interactive: false,
+    });
+  }
+  state.districtsLayer.addTo(state.map);
 }
 
 function initEvents() {
@@ -240,6 +314,16 @@ function initEvents() {
   dom.toggleCatchment.addEventListener("click", () => {
     state.showCatchment = !state.showCatchment;
     dom.toggleCatchment.textContent = state.showCatchment ? "Hide Catchment" : "Show Catchment";
+    refresh();
+  });
+
+  dom.toggleDistricts.addEventListener("click", () => {
+    toggleDistrictLayer().catch((err) => console.error("district layer failed", err));
+  });
+
+  dom.toggleHeatmap.addEventListener("click", () => {
+    state.showHeatmap = !state.showHeatmap;
+    dom.toggleHeatmap.textContent = state.showHeatmap ? "Hide Heatmap" : "Show Heatmap";
     refresh();
   });
 
