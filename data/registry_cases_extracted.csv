@@ -1,0 +1,2 @@
+record_id,source_type,source_name,study_or_registry,hospital,city,state,icd10,meso_type,case_count,year_start,year_end,latitude,longitude,catchment_km,provenance_url,notes
+TEMPLATE-VERIFY,Hospital Registry,NCRP Supplementary Table S1,iutld_pha_24.0003 supplementary table,,,,C45,All,,2012,2023,,,120,https://doi.org/10.5588/pha.24.0003,This file is a staging template. Run extractor script and manually verify totals before merging into registry_cases.csv

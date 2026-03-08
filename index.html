@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MesoIndia | Mesothelioma Case Mapping (ICD-10 C45)</title>
+  <meta name="description" content="Interactive India map for mesothelioma (ICD-10 C45) from registries, NCBI literature, and reviewed community reports." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="page">
+    <h1>MesoIndia</h1>
+    <p class="sub">
+      Live mapping of mesothelioma case locations in India using hospital registries, PBCR data, PubMed/PMC extraction, and reviewed community submissions.
+      Disease focus: <strong>ICD-10 C45 (Mesothelioma)</strong>.
+    </p>
+
+    <section class="kpis">
+      <article class="kpi"><div class="k">Visible Cases</div><div class="v" id="kpi-cases">0</div></article>
+      <article class="kpi"><div class="k">Visible Sites</div><div class="v" id="kpi-sites">0</div></article>
+      <article class="kpi"><div class="k">States</div><div class="v" id="kpi-states">0</div></article>
+      <article class="kpi"><div class="k">Last Updated</div><div class="v" id="kpi-updated">-</div></article>
+    </section>
+
+    <section class="toolbar">
+      <label>Search
+        <input id="search" type="text" placeholder="Hospital, city, study, PMID..." />
+      </label>
+      <label>State
+        <select id="state-filter"><option value="">All</option></select>
+      </label>
+      <label>Source
+        <select id="source-filter">
+          <option value="">All</option>
+          <option value="Hospital Registry">Hospital Registry</option>
+          <option value="PBCR">PBCR</option>
+          <option value="NCBI Literature">NCBI Literature</option>
+          <option value="Community Verified">Community Verified</option>
+        </select>
+      </label>
+      <label>Meso Type
+        <select id="meso-filter">
+          <option value="">All</option>
+          <option value="All">All</option>
+          <option value="Pleural">Pleural</option>
+          <option value="Peritoneal">Peritoneal</option>
+          <option value="Pericardial">Pericardial</option>
+          <option value="Tunica vaginalis">Tunica vaginalis</option>
+        </select>
+      </label>
+      <label>Min Year
+        <input id="min-year" type="number" min="1960" max="2100" value="2000" />
+      </label>
+      <label>
+        <span>Catchment Layer</span>
+        <button id="toggle-catchment" type="button">Show Catchment</button>
+      </label>
+    </section>
+
+    <section class="layout">
+      <section class="panel">
+        <h2>Interactive Map</h2>
+        <div id="map"></div>
+        <div class="legend">
+          <span><i class="swatch source-reg"></i>Hospital Registry</span>
+          <span><i class="swatch source-pbcr"></i>PBCR</span>
+          <span><i class="swatch source-lit"></i>NCBI Literature</span>
+          <span><i class="swatch source-comm"></i>Community Verified</span>
+          <span class="small">Circle radius approximates catchment area where available.</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Visible Records</h2>
+        <ul id="records"></ul>
+      </section>
+    </section>
+
+    <section class="panel" style="margin-top:10px;">
+      <h2>Report a Mesothelioma Case Site (for Review)</h2>
+      <div style="padding:10px 12px;">
+        <p class="small">This opens a prefilled GitHub issue. After review, approved entries are added in a separate map color code.</p>
+        <div class="toolbar" style="margin-top:0; border:0; padding:0; grid-template-columns: repeat(5, minmax(120px, 1fr));">
+          <label>Hospital<input id="r-hospital" type="text" /></label>
+          <label>City<input id="r-city" type="text" /></label>
+          <label>State<input id="r-state" type="text" /></label>
+          <label>Year<input id="r-year" type="number" min="1950" max="2100" value="2026" /></label>
+          <label>Cases<input id="r-count" type="number" min="1" value="1" /></label>
+        </div>
+        <label style="margin-top:8px;">Evidence / link<input id="r-link" type="url" placeholder="https://..." /></label>
+        <button id="submit-report" type="button" style="margin-top:8px;">Create Review Issue</button>
+      </div>
+    </section>
+
+    <p class="small" style="margin-top:10px;">
+      Note: mesothelioma ICD-10 code is <strong>C45</strong>. ICD-10 C46 corresponds to Kaposi sarcoma.
+    </p>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="./app.js"></script>
+</body>
+</html>
