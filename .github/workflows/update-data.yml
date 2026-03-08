@@ -1,0 +1,48 @@
+name: Update MesoIndia Data
+
+on:
+  schedule:
+    - cron: "30 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pypdf
+
+      - name: Refresh NCBI literature CSV
+        env:
+          NCBI_EMAIL: ${{ secrets.NCBI_EMAIL }}
+          NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
+        run: |
+          python scripts/update_ncbi_mesothelioma.py \
+            --email "${NCBI_EMAIL:-mesoindia@example.org}" \
+            --api-key "${NCBI_API_KEY:-}" \
+            --output data/literature_cases.csv
+
+      - name: Rebuild map dataset
+        run: |
+          python scripts/build_dataset.py --data-dir data
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/literature_cases.csv data/meso_cases.geojson data/state_summary.json data/geocode_cache.json
+          git diff --staged --quiet || git commit -m "chore(data): refresh mesothelioma datasets"
+          git push
