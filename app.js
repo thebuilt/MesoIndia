@@ -208,7 +208,9 @@ function renderList() {
 function renderHeatmap() {
   if (!state.heatLayer) return;
   if (!state.showHeatmap) {
-    state.map.removeLayer(state.heatLayer);
+    state.heatLayer.setLatLngs([]);
+    if (!state.map.hasLayer(state.heatLayer)) state.heatLayer.addTo(state.map);
+    if (typeof state.heatLayer.redraw === "function") state.heatLayer.redraw();
     return;
   }
 
@@ -230,8 +232,9 @@ function renderHeatmap() {
       }
     });
 
-  state.heatLayer.setLatLngs(points);
   if (!state.map.hasLayer(state.heatLayer)) state.heatLayer.addTo(state.map);
+  state.heatLayer.setLatLngs(points);
+  if (typeof state.heatLayer.redraw === "function") state.heatLayer.redraw();
 }
 
 function buildStateCounts() {
