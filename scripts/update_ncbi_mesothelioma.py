@@ -20,6 +20,21 @@ DEFAULT_QUERY = (
     '(mesothelioma[Title/Abstract] OR "mesothelioma"[MeSH Terms]) '
     'AND (india[Title/Abstract] OR indian[Title/Abstract])'
 )
+QUERY_BUCKETS = [
+    DEFAULT_QUERY,
+    '("pleural mesothelioma"[Title/Abstract] OR "peritoneal mesothelioma"[Title/Abstract] '
+    'OR "testicular mesothelioma"[Title/Abstract] OR "benign multicystic peritoneal mesothelioma"[Title/Abstract]) '
+    'AND (india[Title/Abstract] OR indian[Title/Abstract])',
+    '(mesothelioma[Title/Abstract]) AND '
+    '(rajasthan[Title/Abstract] OR gujarat[Title/Abstract] OR maharashtra[Title/Abstract] '
+    'OR delhi[Title/Abstract] OR tamil nadu[Title/Abstract] OR karnataka[Title/Abstract] '
+    'OR kerala[Title/Abstract] OR telangana[Title/Abstract] OR haryana[Title/Abstract] '
+    'OR punjab[Title/Abstract] OR west bengal[Title/Abstract] OR andhra pradesh[Title/Abstract])',
+    '(mesothelioma[Title/Abstract]) AND '
+    '("case report"[Title/Abstract] OR "case series"[Title/Abstract] OR clinicopathological[Title/Abstract] '
+    'OR histomorphological[Title/Abstract] OR immunohistochemical[Title/Abstract]) AND '
+    '(india[Affiliation] OR india[Title/Abstract] OR indian[Title/Abstract])',
+]
 
 HOSPITAL_PATTERN = re.compile(
     r"\b("
@@ -64,6 +79,80 @@ EXCLUDE_GEO_TERMS = {
     "hong kong", "china", "united states", " usa", "u.s.a", "united kingdom", "uk ",
     "saudi arabia", "taiwan", "italy", "germany", "singapore", "australia", "japan",
 }
+MESO_TERMS = (
+    "mesothelioma",
+    "pleural mesothelioma",
+    "peritoneal mesothelioma",
+    "multicystic peritoneal mesothelioma",
+    "testicular mesothelioma",
+    "benign multicystic peritoneal mesothelioma",
+)
+PRIMARY_STUDY_CUES = (
+    "case report",
+    "case series",
+    "clinicopathological study",
+    "histomorphological",
+    "retrospective",
+    "prospective",
+    "single-center",
+    "single centre",
+    "tertiary care hospital",
+    "tertiary cancer care center",
+    "experience from",
+    "outcomes from",
+    "study of",
+    "our experience",
+    "institutional experience",
+    "consecutive",
+    "patients with",
+    "diagnosed with",
+)
+NON_PRIMARY_CUES = (
+    "commentary",
+    "consensus",
+    "guideline",
+    "guidelines",
+    "review of literature",
+    "review article",
+    "narrative review",
+    "systematic review",
+    "meta-analysis",
+    "analysis of",
+    "mortality trends",
+    "epidemiological surveillance",
+    "surveillance systems",
+    "future burden",
+    "overview",
+    "perspective",
+    "health effects",
+    "ban asbestos",
+    "time for action",
+    "scientific controversy",
+    "risk factors",
+    "treatment failure",
+    "proteasome activity",
+    "apoptosis",
+    "in vitro",
+    "in vivo",
+    "cell line",
+    "mouse model",
+    "molecular dynamics",
+    "network pharmacology",
+    "machine learning",
+)
+NON_MESO_DISEASE_CUES = (
+    "lung cancer",
+    "non-small cell lung cancer",
+    "thoracic diseases",
+    "pleural effusion",
+    "peritoneal metastases",
+    "cancer patients",
+    "talcum powder",
+    "ship-breaking",
+    "ship recycling",
+    "asbestos exposure",
+    "occupational asbestos exposure",
+)
 
 
 def fetch_url(url: str, timeout: int = 60) -> bytes:
@@ -160,14 +249,53 @@ def extract_india_location(title: str, abstract: str, affiliation: str) -> tuple
 
 
 def estimate_case_count(title: str, abstract: str) -> str:
-    text = f"{title} {abstract}".lower()
-    for rgx in [r"\b(\d{1,4})\s+(?:cases|patients)\b", r"\bcase series of\s+(\d{1,4})\b", r"\bn\s*=\s*(\d{1,4})\b"]:
+    text = normalize_space(f"{title} {abstract}").lower()
+
+    # Only accept counts that are explicitly tied to mesothelioma or the paper's own series.
+    meso_count_patterns = [
+        r"mesothelioma[^.]{0,80}?\b(?:in|of|among)?\s*(\d{1,4})\s+(?:cases|patients)\b",
+        r"\b(\d{1,4})\s+(?:cases|patients)\b[^.]{0,80}?mesothelioma",
+        r"\bstudy of\s+(\d{1,4})\s+cases\b[^.]{0,80}?mesothelioma",
+        r"\bclinicopathological study of\s+(\d{1,4})\s+cases\b",
+        r"\bhistomorphological[^.]{0,80}?\bof\s+(\d{1,4})\s+cases\b",
+        r"\blargest study from india\b[^.]{0,80}?\b(\d{1,4})\b",
+        r"\boutcomes from[^.]{0,80}?\b(\d{1,4})\b[^.]{0,80}?mesothelioma",
+    ]
+    for rgx in meso_count_patterns:
         m = re.search(rgx, text)
         if m:
             return m.group(1)
-    if "case report" in text:
+
+    if "case report" in text or "a rare case of" in text or "posthumous report" in text:
         return "1"
-    return "1"
+    return "0"
+
+
+def is_mesothelioma_primary_paper(title: str, abstract: str) -> bool:
+    text = normalize_space(f"{title} {abstract}").lower()
+    if not any(term in text for term in MESO_TERMS):
+        return False
+
+    # Hard exclusions first.
+    if any(cue in text for cue in NON_PRIMARY_CUES):
+        return False
+
+    # Exclude broad non-mesothelioma cohorts unless mesothelioma itself is the study target.
+    if any(cue in text for cue in NON_MESO_DISEASE_CUES):
+        meso_in_title = "mesothelioma" in normalize_space(title).lower()
+        if not meso_in_title:
+            return False
+
+    if any(cue in text for cue in PRIMARY_STUDY_CUES):
+        return True
+
+    # Accept mesothelioma-specific titles that clearly describe institutional patient material.
+    title_l = normalize_space(title).lower()
+    if "mesothelioma" in title_l and re.search(r"\b\d{1,4}\s+(cases|patients)\b", text):
+        return True
+    if "mesothelioma" in title_l and any(cue in title_l for cue in ("case report", "study", "experience", "outcomes")):
+        return True
+    return False
 
 
 def looks_india_record(title: str, abstract: str) -> bool:
@@ -179,6 +307,39 @@ def looks_india_record(title: str, abstract: str) -> bool:
     if has_excluded_geo and not has_india:
         return False
     return has_india
+
+
+def score_record(title: str, abstract: str, hospital: str, city: str, state: str, case_count: str) -> tuple[int, str]:
+    text = normalize_space(f"{title} {abstract}").lower()
+    score = 0
+    reasons: list[str] = []
+
+    if any(term in text for term in MESO_TERMS):
+        score += 3
+        reasons.append("mesothelioma-term")
+    if looks_india_record(title, abstract):
+        score += 2
+        reasons.append("india-signal")
+    if any(cue in text for cue in PRIMARY_STUDY_CUES):
+        score += 3
+        reasons.append("primary-study-cue")
+    if hospital:
+        score += 2
+        reasons.append("hospital-detected")
+    if city or state:
+        score += 1
+        reasons.append("india-location")
+    if str(case_count).isdigit() and int(case_count) > 0:
+        score += 2
+        reasons.append("cohort-count")
+    if any(cue in text for cue in NON_PRIMARY_CUES):
+        score -= 6
+        reasons.append("non-primary-cue")
+    if any(cue in text for cue in NON_MESO_DISEASE_CUES):
+        score -= 4
+        reasons.append("non-meso-cohort-cue")
+
+    return score, ",".join(reasons)
 
 
 def esearch(term: str, email: str, api_key: str, retmax: int, start_year: int) -> list[str]:
@@ -197,6 +358,17 @@ def esearch(term: str, email: str, api_key: str, retmax: int, start_year: int) -
     url = f"{BASE}/esearch.fcgi?{urllib.parse.urlencode(params)}"
     payload = json.loads(fetch_url(url).decode("utf-8"))
     return payload.get("esearchresult", {}).get("idlist", [])
+
+
+def collect_pmids(email: str, api_key: str, retmax: int, start_year: int, query: str) -> list[str]:
+    if query:
+        return esearch(query, email, api_key, retmax, start_year)
+
+    all_pmids: list[str] = []
+    for term in QUERY_BUCKETS:
+        all_pmids.extend(esearch(term, email, api_key, retmax, start_year))
+        time.sleep(0.2)
+    return sorted(set(all_pmids))
 
 
 def efetch_details(pmids: list[str], email: str, api_key: str, pause_s: float, start_year: int) -> list[dict[str, str]]:
@@ -226,8 +398,6 @@ def efetch_details(pmids: list[str], email: str, api_key: str, pause_s: float, s
 
             affs = [safe_text(a) for a in article.findall(".//AffiliationInfo/Affiliation")]
             affiliation = affs[0] if affs else ""
-            if not looks_india_record(title, abstract):
-                continue
             if year and year.isdigit() and int(year) < start_year:
                 continue
 
@@ -246,9 +416,10 @@ def efetch_details(pmids: list[str], email: str, api_key: str, pause_s: float, s
             if not hospital and affiliation_looks_indian(affiliation):
                 hospital = extract_hospital(affiliation)
             city, state = extract_india_location(title, abstract, affiliation)
-            if not state and not city and "india" not in f"{title} {abstract}".lower():
-                continue
             case_count = estimate_case_count(title, abstract)
+            score, reasons = score_record(title, abstract, hospital, city, state, case_count)
+            primary_ok = is_mesothelioma_primary_paper(title, abstract)
+            india_ok = looks_india_record(title, abstract)
 
             out.append(
                 {
@@ -269,6 +440,11 @@ def efetch_details(pmids: list[str], email: str, api_key: str, pause_s: float, s
                     "latitude": "",
                     "longitude": "",
                     "catchment_km": "90",
+                    "journal": normalize_space(journal),
+                    "affiliation": clean_affiliation(affiliation),
+                    "screen_score": str(score),
+                    "screen_reasons": reasons,
+                    "screen_status": "promote" if (india_ok and primary_ok and score >= 6) else "review",
                     "provenance_url": (
                         f"https://pmc.ncbi.nlm.nih.gov/articles/{pmcid}/"
                         if pmcid
@@ -283,7 +459,7 @@ def efetch_details(pmids: list[str], email: str, api_key: str, pause_s: float, s
     return out
 
 
-def write_csv(rows: list[dict[str, str]], out_path: Path) -> None:
+def write_csv(rows: list[dict[str, str]], out_path: Path, *, candidates: bool = False) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [
         "record_id",
@@ -303,6 +479,11 @@ def write_csv(rows: list[dict[str, str]], out_path: Path) -> None:
         "latitude",
         "longitude",
         "catchment_km",
+        "journal",
+        "affiliation",
+        "screen_score",
+        "screen_reasons",
+        "screen_status",
         "provenance_url",
         "notes",
     ]
@@ -315,12 +496,15 @@ def write_csv(rows: list[dict[str, str]], out_path: Path) -> None:
     with out_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(sorted(dedup.values(), key=lambda r: (r.get("year_start", ""), r.get("pmid", "")), reverse=True))
+        rows_out = sorted(dedup.values(), key=lambda r: (r.get("year_start", ""), r.get("pmid", "")), reverse=True)
+        if not candidates:
+            rows_out = [r for r in rows_out if r.get("screen_status") == "promote"]
+        writer.writerows(rows_out)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--query", default=DEFAULT_QUERY)
+    parser.add_argument("--query", default="")
     parser.add_argument("--email", default="mesoindia@example.org")
     parser.add_argument("--api-key", default="")
     parser.add_argument("--retmax", type=int, default=2500)
@@ -330,12 +514,21 @@ def main() -> None:
         "--output",
         default=str(Path(__file__).resolve().parents[1] / "data" / "literature_cases.csv"),
     )
+    parser.add_argument(
+        "--candidate-output",
+        default=str(Path(__file__).resolve().parents[1] / "data" / "candidate_literature.csv"),
+    )
     args = parser.parse_args()
 
-    pmids = esearch(args.query, args.email, args.api_key, args.retmax, args.start_year)
+    pmids = collect_pmids(args.email, args.api_key, args.retmax, args.start_year, args.query)
     rows = efetch_details(pmids, args.email, args.api_key, args.pause, args.start_year)
-    write_csv(rows, Path(args.output))
-    print(f"Fetched {len(rows)} records. Wrote {args.output} at {dt.datetime.utcnow().isoformat()}Z")
+    write_csv(rows, Path(args.candidate_output), candidates=True)
+    write_csv(rows, Path(args.output), candidates=False)
+    promoted = sum(1 for r in rows if r.get("screen_status") == "promote")
+    print(
+        f"Fetched {len(rows)} candidate records; promoted {promoted}. "
+        f"Wrote {args.candidate_output} and {args.output} at {dt.datetime.utcnow().isoformat()}Z"
+    )
 
 
 if __name__ == "__main__":

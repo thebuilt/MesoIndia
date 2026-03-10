@@ -19,6 +19,7 @@ This repository is configured for C45 and all mesothelioma types.
 - `index.html`, `app.js`, `styles.css`: Interactive Leaflet map UI
   - Includes toggleable catchment circles, district boundary overlay, and weighted heatmap
 - `data/registry_cases.csv`: Hospital/PBCR rows from registry sources
+- `data/candidate_literature.csv`: Broad PubMed candidate pool for manual review
 - `data/literature_cases.csv`: NCBI-derived rows (auto-refreshed)
 - `data/community_verified.csv`: Approved community submissions only
 - `data/meso_cases.geojson`: Combined map dataset (generated)
@@ -48,6 +49,10 @@ python3 scripts/update_ncbi_mesothelioma.py \
   --api-key "<optional-ncbi-key>" \
   --output data/literature_cases.csv
 ```
+
+This writes two files:
+- `data/candidate_literature.csv`: broad retrieval + screening metadata
+- `data/literature_cases.csv`: promoted higher-confidence records used by the map
 
 2) Rebuild map dataset:
 ```bash
@@ -105,4 +110,4 @@ Primary PBCR annexure page:
 Current structure supports adding PBCR rows directly into `data/registry_cases.csv` as `source_type=PBCR`.
 
 ## Important quality note
-Hospital extraction from PubMed metadata is pattern-based. Some records will require manual verification, especially when affiliations do not include explicit hospital names.
+Hospital extraction from PubMed metadata is pattern-based. The pipeline now separates broad candidate retrieval from promoted records, but some records still require manual verification before being trusted as mesothelioma case-site evidence.
