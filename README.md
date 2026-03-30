@@ -1,6 +1,6 @@
-# MesoIndia
+# Asbestos India
 
-Interactive India map for mesothelioma case locations from:
+Interactive India map for asbestos case locations from:
 - Hospital-level registry datasets
 - PBCR registry sources
 - NCBI literature (PubMed/PMC)
@@ -9,10 +9,7 @@ Interactive India map for mesothelioma case locations from:
 The project is built as a static site + reproducible Python ETL scripts so you can host it on GitHub Pages and keep data refreshed daily.
 
 ## Disease coding note
-Mesothelioma is **ICD-10 C45**.
-- `C45` = Mesothelioma
-
-This repository is configured for C45 and all mesothelioma types.
+This repository is configured for Asbestos tracking.
 
 ## Repository layout
 
@@ -22,10 +19,10 @@ This repository is configured for C45 and all mesothelioma types.
 - `data/candidate_literature.csv`: Broad PubMed candidate pool for manual review
 - `data/literature_cases.csv`: NCBI-derived rows (auto-refreshed)
 - `data/community_verified.csv`: Approved community submissions only
-- `data/meso_cases.geojson`: Combined map dataset (generated)
-- `scripts/update_ncbi_mesothelioma.py`: Pulls India mesothelioma records from NCBI API
+- `data/asbestos_cases.geojson`: Combined map dataset (generated)
+- `scripts/update_ncbi_asbestos.py`: Pulls India asbestos records from NCBI API
 - `scripts/extract_supplementary_table.py`: Extracts hospital rows from supplementary PDF table
-- `scripts/build_dataset.py`: Merges CSVs into `meso_cases.geojson`
+- `scripts/build_dataset.py`: Merges CSVs into `asbestos_cases.geojson`
 - `scripts/import_soi_state_boundary.py`: Imports SOI state boundary shapefile to map GeoJSON
 - `scripts/import_soi_district_boundary.py`: Imports SOI district boundary shapefile to simplified overlay GeoJSON
 - `.github/workflows/update-data.yml`: Daily data refresh automation
@@ -33,7 +30,7 @@ This repository is configured for C45 and all mesothelioma types.
 ## Quick start (local)
 
 ```bash
-cd MesoIndia
+cd app-pubmed-asbestos
 python3 scripts/build_dataset.py --data-dir data
 python3 -m http.server 8080
 ```
@@ -44,7 +41,7 @@ Then open `http://localhost:8080`.
 
 1) Update literature from NCBI:
 ```bash
-python3 scripts/update_ncbi_mesothelioma.py \
+python3 scripts/update_ncbi_asbestos.py \
   --email "you@example.org" \
   --api-key "<optional-ncbi-key>" \
   --output data/literature_cases.csv
@@ -99,7 +96,7 @@ Recommended repo secrets:
 For each new source row, keep:
 - `provenance_url` (paper, registry, or report link)
 - `hospital`, `city`, `state`
-- `icd10 = C45`
+- `icd10 = Asbestos`
 - `case_count`, `year_start`, `year_end`
 
 ## PBCR / NCDIR integration
@@ -110,4 +107,4 @@ Primary PBCR annexure page:
 Current structure supports adding PBCR rows directly into `data/registry_cases.csv` as `source_type=PBCR`.
 
 ## Important quality note
-Hospital extraction from PubMed metadata is pattern-based. The pipeline now separates broad candidate retrieval from promoted records, but some records still require manual verification before being trusted as mesothelioma case-site evidence.
+Hospital extraction from PubMed metadata is pattern-based. The pipeline now separates broad candidate retrieval from promoted records, but some records still require manual verification before being trusted as asbestos case-site evidence.

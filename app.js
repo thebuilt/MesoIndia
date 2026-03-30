@@ -1,8 +1,8 @@
 const CONFIG = {
-  casesUrl: "./data/meso_cases.geojson",
+  casesUrl: "./data/asbestos_cases.geojson",
   statesUrl: "./data/india-states-simplified.geojson",
   districtsUrl: "./data/india-districts-simplified.geojson",
-  issueRepoUrl: "https://github.com/thebuilt/MesoIndia",
+  issueRepoUrl: "https://github.com/thebuilt/app-pubmed-asbestos",
 };
 
 const state = {
@@ -151,7 +151,7 @@ function popupHtml(p) {
     <strong>${p.hospital || "Unknown hospital"}</strong><br>
     ${p.city || ""}${p.city && p.state ? ", " : ""}${p.state || ""}<br>
     <small>${p.source_type || "Unknown source"} | Cases: ${p.case_count || 1} | ${p.year_start || "-"}-${p.year_end || "-"}</small><br>
-    <small>Meso type: ${p.meso_type || "All"} | ICD-10: ${p.icd10 || "C45"}</small><br>
+    <small>Disease type: ${p.meso_type || "All"} | ICD-10: ${p.icd10 || "Asbestos"}</small><br>
     ${p.provenance_url ? `<a href="${p.provenance_url}" target="_blank" rel="noopener">Source</a>` : ""}
   `;
 }
@@ -299,7 +299,7 @@ async function initMap() {
     });
   }
 
-  setLoading(true, "Loading mesothelioma records...", 28);
+  setLoading(true, "Loading asbestos records...", 28);
   const [casesRes, statesRes] = await Promise.all([fetch(CONFIG.casesUrl), fetch(CONFIG.statesUrl)]);
   setLoading(true, "Parsing boundary layers...", 62);
   const casesJson = await casesRes.json();
@@ -378,15 +378,15 @@ function initEvents() {
   });
 
   dom.submitReport.addEventListener("click", () => {
-    const title = `[Community Meso Site] ${dom.rHospital.value || "Unknown hospital"} - ${dom.rCity.value || "Unknown city"}`;
+    const title = `[Community Asbestos Site] ${dom.rHospital.value || "Unknown hospital"} - ${dom.rCity.value || "Unknown city"}`;
     const body = [
-      "## Community Mesothelioma Site Report",
+      "## Community Asbestos Site Report",
       `- Hospital: ${dom.rHospital.value || ""}`,
       `- City: ${dom.rCity.value || ""}`,
       `- State: ${dom.rState.value || ""}`,
       `- Year: ${dom.rYear.value || ""}`,
       `- Approx case count: ${dom.rCount.value || "1"}`,
-      `- ICD-10: C45`,
+      `- ICD-10: Asbestos`,
       `- Evidence link: ${dom.rLink.value || ""}`,
       "- Notes:"
     ].join("\n");

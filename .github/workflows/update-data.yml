@@ -1,4 +1,4 @@
-name: Update MesoIndia Data
+name: Update Asbestos India Data
 
 on:
   schedule:
@@ -30,8 +30,8 @@ jobs:
           NCBI_EMAIL: ${{ secrets.NCBI_EMAIL }}
           NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
         run: |
-          python scripts/update_ncbi_mesothelioma.py \
-            --email "${NCBI_EMAIL:-mesoindia@example.org}" \
+          python scripts/update_ncbi_asbestos.py \
+            --email "${NCBI_EMAIL:-asbestosindia@example.org}" \
             --api-key "${NCBI_API_KEY:-}" \
             --output data/literature_cases.csv
 
@@ -43,6 +43,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/literature_cases.csv data/meso_cases.geojson data/state_summary.json data/geocode_cache.json
-          git diff --staged --quiet || git commit -m "chore(data): refresh mesothelioma datasets"
+          git add data/literature_cases.csv data/asbestos_cases.geojson data/state_summary.json data/geocode_cache.json
+          git diff --staged --quiet || git commit -m "chore(data): refresh asbestos datasets"
           git push

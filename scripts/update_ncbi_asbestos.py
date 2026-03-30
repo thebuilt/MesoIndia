@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch India mesothelioma literature from NCBI E-utilities and extract hospital-level records."""
+"""Fetch India asbestos literature from NCBI E-utilities and extract hospital-level records."""
 
 from __future__ import annotations
 
@@ -17,20 +17,20 @@ from typing import Iterable
 
 BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 DEFAULT_QUERY = (
-    '(mesothelioma[Title/Abstract] OR "mesothelioma"[MeSH Terms]) '
+    '(asbestos[Title/Abstract] OR "asbestos"[MeSH Terms]) '
     'AND (india[Title/Abstract] OR indian[Title/Abstract])'
 )
 QUERY_BUCKETS = [
     DEFAULT_QUERY,
-    '("pleural mesothelioma"[Title/Abstract] OR "peritoneal mesothelioma"[Title/Abstract] '
-    'OR "testicular mesothelioma"[Title/Abstract] OR "benign multicystic peritoneal mesothelioma"[Title/Abstract]) '
+    '("asbestosis"[Title/Abstract] OR "asbestos exposure"[Title/Abstract] '
+    'OR "asbestos-related"[Title/Abstract]) '
     'AND (india[Title/Abstract] OR indian[Title/Abstract])',
-    '(mesothelioma[Title/Abstract]) AND '
+    '(asbestos[Title/Abstract] OR asbestosis[Title/Abstract]) AND '
     '(rajasthan[Title/Abstract] OR gujarat[Title/Abstract] OR maharashtra[Title/Abstract] '
     'OR delhi[Title/Abstract] OR tamil nadu[Title/Abstract] OR karnataka[Title/Abstract] '
     'OR kerala[Title/Abstract] OR telangana[Title/Abstract] OR haryana[Title/Abstract] '
     'OR punjab[Title/Abstract] OR west bengal[Title/Abstract] OR andhra pradesh[Title/Abstract])',
-    '(mesothelioma[Title/Abstract]) AND '
+    '(asbestos[Title/Abstract] OR asbestosis[Title/Abstract]) AND '
     '("case report"[Title/Abstract] OR "case series"[Title/Abstract] OR clinicopathological[Title/Abstract] '
     'OR histomorphological[Title/Abstract] OR immunohistochemical[Title/Abstract]) AND '
     '(india[Affiliation] OR india[Title/Abstract] OR indian[Title/Abstract])',
@@ -80,12 +80,12 @@ EXCLUDE_GEO_TERMS = {
     "saudi arabia", "taiwan", "italy", "germany", "singapore", "australia", "japan",
 }
 MESO_TERMS = (
-    "mesothelioma",
-    "pleural mesothelioma",
-    "peritoneal mesothelioma",
-    "multicystic peritoneal mesothelioma",
-    "testicular mesothelioma",
-    "benign multicystic peritoneal mesothelioma",
+    "asbestos",
+    "asbestosis",
+    "asbestos-related",
+    "occupational exposure",
+    "chrysotile",
+    "tremolite",
 )
 PRIMARY_STUDY_CUES = (
     "case report",
@@ -141,17 +141,11 @@ NON_PRIMARY_CUES = (
     "machine learning",
 )
 NON_MESO_DISEASE_CUES = (
-    "lung cancer",
-    "non-small cell lung cancer",
-    "thoracic diseases",
     "pleural effusion",
-    "peritoneal metastases",
     "cancer patients",
     "talcum powder",
-    "ship-breaking",
-    "ship recycling",
-    "asbestos exposure",
-    "occupational asbestos exposure",
+    "smoking",
+    "tuberculosis",
 )
 
 
@@ -251,15 +245,16 @@ def extract_india_location(title: str, abstract: str, affiliation: str) -> tuple
 def estimate_case_count(title: str, abstract: str) -> str:
     text = normalize_space(f"{title} {abstract}").lower()
 
-    # Only accept counts that are explicitly tied to mesothelioma or the paper's own series.
+    # Only accept counts that are explicitly tied to asbestos or the paper's own series.
     meso_count_patterns = [
-        r"mesothelioma[^.]{0,80}?\b(?:in|of|among)?\s*(\d{1,4})\s+(?:cases|patients)\b",
-        r"\b(\d{1,4})\s+(?:cases|patients)\b[^.]{0,80}?mesothelioma",
-        r"\bstudy of\s+(\d{1,4})\s+cases\b[^.]{0,80}?mesothelioma",
+        r"asbestos[^.]{0,80}?\b(?:in|of|among)?\s*(\d{1,4})\s+(?:cases|patients)\b",
+        r"asbestosis[^.]{0,80}?\b(?:in|of|among)?\s*(\d{1,4})\s+(?:cases|patients)\b",
+        r"\b(\d{1,4})\s+(?:cases|patients)\b[^.]{0,80}?asbestos",
+        r"\bstudy of\s+(\d{1,4})\s+cases\b[^.]{0,80}?asbestos",
         r"\bclinicopathological study of\s+(\d{1,4})\s+cases\b",
         r"\bhistomorphological[^.]{0,80}?\bof\s+(\d{1,4})\s+cases\b",
         r"\blargest study from india\b[^.]{0,80}?\b(\d{1,4})\b",
-        r"\boutcomes from[^.]{0,80}?\b(\d{1,4})\b[^.]{0,80}?mesothelioma",
+        r"\boutcomes from[^.]{0,80}?\b(\d{1,4})\b[^.]{0,80}?asbestos",
     ]
     for rgx in meso_count_patterns:
         m = re.search(rgx, text)
@@ -282,7 +277,7 @@ def is_mesothelioma_primary_paper(title: str, abstract: str) -> bool:
 
     # Exclude broad non-mesothelioma cohorts unless mesothelioma itself is the study target.
     if any(cue in text for cue in NON_MESO_DISEASE_CUES):
-        meso_in_title = "mesothelioma" in normalize_space(title).lower()
+        meso_in_title = "asbestos" in normalize_space(title).lower() or "asbestosis" in normalize_space(title).lower()
         if not meso_in_title:
             return False
 
@@ -291,9 +286,9 @@ def is_mesothelioma_primary_paper(title: str, abstract: str) -> bool:
 
     # Accept mesothelioma-specific titles that clearly describe institutional patient material.
     title_l = normalize_space(title).lower()
-    if "mesothelioma" in title_l and re.search(r"\b\d{1,4}\s+(cases|patients)\b", text):
+    if ("asbestos" in title_l or "asbestosis" in title_l) and re.search(r"\b\d{1,4}\s+(cases|patients)\b", text):
         return True
-    if "mesothelioma" in title_l and any(cue in title_l for cue in ("case report", "study", "experience", "outcomes")):
+    if ("asbestos" in title_l or "asbestosis" in title_l) and any(cue in title_l for cue in ("case report", "study", "experience", "outcomes")):
         return True
     return False
 
@@ -432,7 +427,7 @@ def efetch_details(pmids: list[str], email: str, api_key: str, pause_s: float, s
                     "hospital": hospital,
                     "city": city,
                     "state": state,
-                    "icd10": "C45",
+                    "icd10": "Asbestos",
                     "meso_type": "All",
                     "case_count": case_count,
                     "year_start": year,
@@ -505,7 +500,7 @@ def write_csv(rows: list[dict[str, str]], out_path: Path, *, candidates: bool = 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--query", default="")
-    parser.add_argument("--email", default="mesoindia@example.org")
+    parser.add_argument("--email", default="asbestosindia@example.org")
     parser.add_argument("--api-key", default="")
     parser.add_argument("--retmax", type=int, default=2500)
     parser.add_argument("--start-year", type=int, default=1990)
