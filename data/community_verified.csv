@@ -1,2 +1,1 @@
 record_id,source_type,source_name,hospital,city,state,icd10,meso_type,case_count,year_start,year_end,latitude,longitude,catchment_km,provenance_url,review_status,notes
-COMM-EXAMPLE-001,Community Verified,Reviewed Community Submission,Example Hospital Name,Example City,Example State,C45,All,1,2026,2026,22.0,78.0,75,,verified,Template row: replace or delete

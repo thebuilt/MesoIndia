@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MesoIndia | Mesothelioma Case Mapping (ICD-10 C45)</title>
-  <meta name="description" content="Interactive India map for mesothelioma (ICD-10 C45) from registries, NCBI literature, and reviewed community reports." />
+  <title>Asbestos India | Asbestos Tracking</title>
+  <meta name="description" content="Interactive India map for asbestos from registries, NCBI literature, and reviewed community reports." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -13,10 +13,10 @@
 </head>
 <body>
   <main class="page">
-    <h1>MesoIndia</h1>
+    <h1>Asbestos India</h1>
     <p class="sub">
-      Live mapping of mesothelioma case locations in India using hospital registries, PBCR data, PubMed/PMC extraction, and reviewed community submissions.
-      Disease focus: <strong>ICD-10 C45 (Mesothelioma)</strong>.
+      Live mapping of asbestos case locations in India using hospital registries, PBCR data, PubMed/PMC extraction, and reviewed community submissions.
+      Disease focus: <strong>Asbestos Tracking</strong>.
     </p>
 
     <section class="kpis">
@@ -40,14 +40,10 @@
         <label><input type="checkbox" class="src-toggle" value="NCBI Literature" checked /> NCBI Literature</label>
         <label><input type="checkbox" class="src-toggle" value="Community Verified" checked /> Community Verified</label>
       </fieldset>
-      <label>Meso Type
+      <label>Disease Type
         <select id="meso-filter">
           <option value="">All</option>
           <option value="All">All</option>
-          <option value="Pleural">Pleural</option>
-          <option value="Peritoneal">Peritoneal</option>
-          <option value="Pericardial">Pericardial</option>
-          <option value="Tunica vaginalis">Tunica vaginalis</option>
         </select>
       </label>
       <label>Min Year
@@ -96,7 +92,7 @@
     </section>
 
     <section class="panel" style="margin-top:10px;">
-      <h2>Report a Mesothelioma Case Site (for Review)</h2>
+      <h2>Report an Asbestos Case Site (for Review)</h2>
       <div style="padding:10px 12px;">
         <p class="small">This opens a prefilled GitHub issue. After review, approved entries are added in a separate map color code.</p>
         <div class="toolbar" style="margin-top:0; border:0; padding:0; grid-template-columns: repeat(5, minmax(120px, 1fr));">
@@ -111,7 +107,7 @@
       </div>
     </section>
 
-    <p class="small" style="margin-top:10px;">Note: mesothelioma ICD-10 code is <strong>C45</strong>.</p>
+    <p class="small" style="margin-top:10px;">Note: Tracking focuses on Asbestos cases.</p>
   </main>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

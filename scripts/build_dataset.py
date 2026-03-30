@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Merge source CSV files into a map-ready GeoJSON for the MesoIndia dashboard."""
+"""Merge source CSV files into a map-ready GeoJSON for the Asbestos India dashboard."""
 
 from __future__ import annotations
 
@@ -105,7 +105,7 @@ def geocode_if_needed(row: dict[str, str], cache: dict[str, list[float]], pause_
     url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode(
         {"q": q, "format": "json", "limit": 1}
     )
-    req = urllib.request.Request(url, headers={"User-Agent": "MesoIndia/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "AsbestosIndia/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=40) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
@@ -200,11 +200,11 @@ def main() -> None:
         "features": features,
     }
 
-    (data_dir / "meso_cases.geojson").write_text(json.dumps(fc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    (data_dir / "asbestos_cases.geojson").write_text(json.dumps(fc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     (data_dir / "state_summary.json").write_text(json.dumps(state_summary(features), ensure_ascii=False), encoding="utf-8")
     cache_path.write_text(json.dumps(cache, ensure_ascii=False), encoding="utf-8")
 
-    print(f"Built {len(features)} map features -> {data_dir / 'meso_cases.geojson'}")
+    print(f"Built {len(features)} map features -> {data_dir / 'asbestos_cases.geojson'}")
 
 
 if __name__ == "__main__":
